@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sdt}
+      POSTGRES_USER: ${POSTGRES_USER:-sdt}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sdt}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sdt} -d ${POSTGRES_DB:-sdt}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./server
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-sdt}:${POSTGRES_PASSWORD:-sdt}@postgres:5432/${POSTGRES_DB:-sdt}
+      SESSION_SECRET: ${SESSION_SECRET:-thay-secret-khi-trien-khai}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # Vite trên chính máy chủ dùng cổng này; không công khai API ra Internet.
+      - "127.0.0.1:${API_PORT:-4000}:4000"
+
+  web:
+    build: .
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
