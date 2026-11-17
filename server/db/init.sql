@@ -1,5 +1,4 @@
--- SDT MVP: định danh, phân quyền và trạng thái lớp được tách riêng.
--- Các bảng miền chi tiết sẽ tách dần từ payload JSONB khi chuyển sang NM1–NM5.
+-- SDT: định danh, phân quyền và nhật ký kiểm toán. Dữ liệu học tập nằm ở 002-bang-that.sql.
 CREATE TABLE IF NOT EXISTS lop_hoc (
   id TEXT PRIMARY KEY,
   ten TEXT NOT NULL,
@@ -19,14 +18,6 @@ CREATE TABLE IF NOT EXISTS nguoi_dung (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT hs_co_ma CHECK ((vai_tro = 'HOC_SINH' AND hoc_sinh_id IS NOT NULL) OR vai_tro <> 'HOC_SINH')
-);
-
-CREATE TABLE IF NOT EXISTS trang_thai_lop (
-  lop_id TEXT PRIMARY KEY REFERENCES lop_hoc(id) ON DELETE CASCADE,
-  du_lieu JSONB NOT NULL,
-  phien_ban INTEGER NOT NULL DEFAULT 1,
-  cap_nhat_boi TEXT REFERENCES nguoi_dung(id),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS nhat_ky_kiem_toan (

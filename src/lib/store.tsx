@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useState, type ReactNode, type Dispatch } from 'react'
-import type { VaiTro } from '../types'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode, type Dispatch } from 'react'
+import type { NopPhieuInput, Phieu, VaiTro } from '../types'
+import { request } from './auth'
 
 export type ManHinh = 'A' | 'B' | 'C' | 'D' | 'E'
 
@@ -10,7 +11,7 @@ export const MAN_HINH_THEO_VAI_TRO: Record<VaiTro, readonly ManHinh[]> = {
 }
 export const MAN_HINH_MAC_DINH: Record<VaiTro, ManHinh> = { HOC_SINH: 'A', GIAO_VIEN: 'C', QUAN_TRI: 'C' }
 
-/** M0 chỉ giữ trạng thái giao diện. M1 sẽ fetch từng tài nguyên, không hydrate cả lớp. */
+/** Store chỉ giữ trạng thái giao diện. Dữ liệu học tập fetch theo từng tài nguyên (xem phía dưới), không hydrate cả lớp. */
 export interface TrangThaiUng {
   vai_tro: VaiTro
   man_hinh: ManHinh
@@ -51,4 +52,31 @@ export function useApp() {
   const v = useContext(Ctx)
   if (!v) throw new Error('useApp phải nằm trong AppProvider')
   return v
+}
+
+/** Nộp phiếu = INSERT một dòng mới; không đọc-sửa-ghi nên hai em nộp cùng lúc không đè nhau. */
+export function nopPhieu(input: NopPhieuInput): Promise<{ id: string; thoi_diem: string }> {
+  return request('/api/phieu', { method: 'POST', body: JSON.stringify(input) })
+}
+
+export async function layLichSuPhieu(id: string): Promise<Phieu[]> {
+  return (await request(`/api/phieu/${encodeURIComponent(id)}/lich-su`)).lich_su
+}
+
+/** Phiếu của chính học sinh đang đăng nhập; `moiNhat` chỉ lấy bản nộp mới nhất mỗi loại. */
+export function usePhieuCuaToi(moiNhat = false) {
+  const [phieu, setPhieu] = useState<Phieu[]>([])
+  const [dang_tai, setDangTai] = useState(true)
+  const [loi, setLoi] = useState<string | null>(null)
+  const tai_lai = useCallback(async () => {
+    setDangTai(true)
+    try {
+      setPhieu((await request(`/api/phieu/cua-toi${moiNhat ? '?moi_nhat=true' : ''}`)).phieu)
+      setLoi(null)
+    } catch (e) {
+      setLoi(e instanceof Error ? e.message : 'Không tải được phiếu.')
+    } finally { setDangTai(false) }
+  }, [moiNhat])
+  useEffect(() => { void tai_lai() }, [tai_lai])
+  return { phieu, dang_tai, loi, tai_lai }
 }

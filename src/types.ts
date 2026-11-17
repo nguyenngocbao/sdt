@@ -228,3 +228,38 @@ export interface CauHinhPhien {
   hoat_dong_dang_mo: string
   nam_hoc: string
 }
+
+/** Phiếu nộp (bảng `phieu`, append-only). Nộp lại = dòng mới có thay_the_cho trỏ về bản cũ. */
+export type LoaiPhieu = 'P0' | 'E1' | 'E2' | 'E3' | 'E4' | 'E5' | 'P1'
+
+export interface Phieu {
+  id: string            // BIGSERIAL trả về dạng chuỗi
+  ma_hs: string
+  chang: number         // 0..6
+  loai: LoaiPhieu
+  noi_dung: Record<string, unknown>
+  thay_the_cho: string | null
+  nguoi_tao: string
+  nhap_ho: boolean
+  thoi_diem: string
+}
+
+export interface LanThuNop {
+  lan?: number
+  tai_g?: number | null
+  giu_giay?: number | null
+  vi_tri?: string | null
+  bien_dang?: string | null
+  dang_hong?: string | null
+  ghi_chu?: string | null
+}
+
+export interface NopPhieuInput {
+  chang: number
+  loai: LoaiPhieu
+  noi_dung: Record<string, unknown>
+  thay_the_cho?: string | null
+  lan_thu?: LanThuNop[]
+  /** Chỉ GV/quản trị nhập hộ; học sinh luôn nộp cho chính mình. */
+  ma_hs?: string
+}
