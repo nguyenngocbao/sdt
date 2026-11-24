@@ -2,6 +2,7 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import { createServer } from 'node:http'
 import { Pool } from 'pg'
 import { taoGoiYLuat } from './goi-y-luat.mjs'
+import { ghiQuanSat, lopCuaGiaoVien } from './quan-sat.mjs'
 import { duyet, ghiSuKienNopLai, goiYCuaHocSinh, hangCho, thongKeNhanh } from './duyet-goi-y.mjs'
 
 const PORT = Number(process.env.PORT ?? 4000)
@@ -196,6 +197,14 @@ const server = createServer(async (request, response) => {
       if (!['GIAO_VIEN', 'QUAN_TRI'].includes(user.vai_tro)) return json(response, 403, { message: 'Chỉ giáo viên hoặc quản trị được duyệt gợi ý.' })
       if (request.method === 'GET' && url.pathname === '/api/gv/hang-cho') return json(response, 200, await hangCho(pool, user))
       if (request.method === 'GET' && url.pathname === '/api/gv/thong-ke-nhanh') return json(response, 200, await thongKeNhanh(pool, user))
+      if (request.method === 'POST' && url.pathname === '/api/gv/quan-sat') {
+        const ketQua = await ghiQuanSat(pool, user, await body(request))
+        return json(response, ketQua.code, ketQua.data)
+      }
+      if (request.method === 'GET' && url.pathname === '/api/gv/lop') {
+        const ketQua = await lopCuaGiaoVien(pool, user, Number(url.searchParams.get('chang')))
+        return json(response, ketQua.code, ketQua.data)
+      }
       const duyetMatch = url.pathname.match(/^\/api\/gv\/duyet\/([^/]+)$/)
       if (request.method === 'POST' && duyetMatch) {
         if (!ID_RE.test(duyetMatch[1])) return json(response, 400, { message: 'Mã gợi ý không hợp lệ.' })
