@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import { Pool } from 'pg'
+import { taoGoiYLuat } from './goi-y-luat.mjs'
 
 const PORT = Number(process.env.PORT ?? 4000)
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://sdt:sdt@localhost:5432/sdt'
@@ -153,13 +154,40 @@ const server = createServer(async (request, response) => {
             [rows[0].id, l.lan ?? i + 1, l.tai_g ?? null, l.giu_giay ?? null, l.vi_tri ?? null, l.bien_dang ?? null, l.dang_hong ?? null, l.ghi_chu ?? null],
           )
         }
+        const goiY = await taoGoiYLuat(client, rows[0].id)
         await client.query('COMMIT')
         await audit(user, 'NOP_PHIEU', `PHIEU:${rows[0].id}`, { ma_hs: maHs, loai: input.loai })
-        return json(response, 201, { id: rows[0].id, thoi_diem: rows[0].thoi_diem })
+        return json(response, 201, { id: rows[0].id, thoi_diem: rows[0].thoi_diem, goi_y: goiY.filter((g) => g.trang_thai === 'GUI') })
       } catch (error) {
         await client.query('ROLLBACK').catch(() => undefined)
         throw error
       } finally { client.release() }
+    }
+    if (request.method === 'POST' && url.pathname === '/api/noi-bo/re-nhanh') {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (!['GIAO_VIEN', 'QUAN_TRI'].includes(user.vai_tro)) return json(response, 403, { message: 'Chỉ giáo viên hoặc quản trị được gọi API nội bộ.' })
+      const input = await body(request)
+      if (!ID_RE.test(String(input.phieu_id ?? ''))) return json(response, 400, { message: 'Mã phiếu không hợp lệ.' })
+      const found = await pool.query('SELECT ma_hs FROM phieu WHERE id = $1', [input.phieu_id])
+      if (!found.rowCount || !(await canAccessHs(user, found.rows[0].ma_hs))) return json(response, 404, { message: 'Không tìm thấy phiếu.' })
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        const goiY = await taoGoiYLuat(client, input.phieu_id)
+        await client.query('COMMIT')
+        return json(response, 200, { goi_y: goiY })
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined)
+        throw error
+      } finally { client.release() }
+    }
+    if (request.method === 'GET' && url.pathname === '/api/goi-y/cua-toi') {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (user.vai_tro !== 'HOC_SINH' || !user.hoc_sinh_id) return json(response, 403, { message: 'Chỉ học sinh có gợi ý của chính mình.' })
+      const { rows } = await pool.query("SELECT * FROM goi_y WHERE ma_hs = $1 AND trang_thai = 'GUI' ORDER BY thoi_diem, id", [user.hoc_sinh_id])
+      return json(response, 200, { goi_y: rows })
     }
     if (request.method === 'GET' && url.pathname === '/api/phieu/cua-toi') {
       const user = await currentUser(request)
@@ -212,4 +240,4 @@ const server = createServer(async (request, response) => {
   }
 })
 
-seed().then(() => server.listen(PORT, '0.0.0.0', () => console.log(`SDT API listening on ${PORT}`))).catch((error) => { console.error(error); process.exit(1) })
+seed().then(() => server.listen(PORT, process.env.HOST ?? '0.0.0.0', () => console.log(`SDT API listening on ${PORT}`))).catch((error) => { console.error(error); process.exit(1) })

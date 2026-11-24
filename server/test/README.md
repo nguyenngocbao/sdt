@@ -1,4 +1,29 @@
-# Kiểm thử đồng thời M1
+# Kiểm thử backend
+
+## Luật M3
+
+```sh
+node server/test/re-nhanh.mjs
+```
+
+Không cần dependency hoặc DB. In PASS cho 20 ca: phủ 8 nhánh luật, biên 20%,
+nhiều nhánh cùng lúc, cách ly học sinh, chọn đúng E4 nguồn và không sinh nhánh.
+Kiểm thêm câu hỏi/từ cấm, căn cứ thật, đầu vào đóng băng và tính tất định.
+N5.2 thuộc M6 nên không có luật M3 cho nhánh này.
+
+Kiểm thử API với PostgreSQL thật dùng cùng dependency/cách cài như M1 bên dưới:
+
+```sh
+node server/test/api-re-nhanh.mjs
+```
+
+Tạo DB tạm riêng và API chỉ nghe `127.0.0.1` (`HOST`), kiểm tự sinh N4.1 GUI,
+N4.2 CHO với 800/600 trong `can_cu`, E5 so E4, phân quyền/cách ly, gọi nội bộ
+đồng thời không nhân đôi và rollback khi lỗi ghi. Không gọi DB/API đang chạy.
+Nếu sandbox chặn PostgreSQL, script trả 1, không coi là đã nghiệm thu tích hợp.
+Màn A chưa nối hiển thị gợi ý; xem [hợp đồng và giới hạn M3](../src/README.md).
+
+## Đồng thời M1
 
 Kiểm thử dùng PostgreSQL 16 thật (binary cục bộ từ `embedded-postgres`), chạy
 migration và API `server/src/app.mjs` thật. Mỗi lượt tạo cluster trống trong thư
