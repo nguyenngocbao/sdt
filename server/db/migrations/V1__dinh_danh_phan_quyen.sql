@@ -1,4 +1,4 @@
--- SDT: định danh, phân quyền và nhật ký kiểm toán. Dữ liệu học tập nằm ở 002-bang-that.sql.
+-- SDT: định danh, phân quyền và nhật ký kiểm toán. Dữ liệu học tập nằm ở V2__bang_that.sql.
 CREATE TABLE IF NOT EXISTS lop_hoc (
   id TEXT PRIMARY KEY,
   ten TEXT NOT NULL,

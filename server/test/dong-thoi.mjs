@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -93,9 +93,10 @@ async function main() {
   db = postgres.getPgClient('postgres', '127.0.0.1')
   await db.connect()
   await db.query("SET statement_timeout = '10s'")
-  for (const file of ['init.sql', '002-bang-that.sql']) {
-    await db.query(await readFile(new URL(`../db/${file}`, import.meta.url), 'utf8'))
-  }
+  const migrationsDir = new URL('../db/migrations/', import.meta.url)
+  const migrationFiles = (await readdir(migrationsDir)).filter((f) => /^V\d+__.*\.sql$/.test(f))
+    .sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)))
+  for (const file of migrationFiles) await db.query(await readFile(new URL(file, migrationsDir), 'utf8'))
   const databaseUrl = new URL('postgresql://127.0.0.1/postgres')
   // Use the client's resolved settings so the API connects to this same cluster.
   databaseUrl.port = String(port)

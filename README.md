@@ -12,7 +12,7 @@ Kịch bản trung tâm là kịch bản 7.1 của `SDT.docx`: Trần Minh Đứ
 docker compose up -d --build    # http://localhost:8080
 ```
 
-Docker dựng đủ `web` (React/nginx), `api` (xác thực + phân quyền) và `postgres` (migration tại `server/db/init.sql`). Trước khi triển khai thật, đặt biến `SESSION_SECRET` dài, ngẫu nhiên và `COOKIE_SECURE=true` sau khi đã có HTTPS; không dùng giá trị mặc định.
+Docker dựng đủ `web` (React/nginx), `api` (xác thực + phân quyền) và `postgres`. Schema do Flyway quản lý: service `migrate` chạy các file `server/db/migrations/V*__*.sql` mỗi lần `up` rồi mới cho `api` khởi động. Trước khi triển khai thật, đặt biến `SESSION_SECRET` dài, ngẫu nhiên và `COOKIE_SECURE=true` sau khi đã có HTTPS; không dùng giá trị mặc định.
 
 Để xoá toàn bộ dữ liệu phát triển và dựng lại:
 
@@ -27,6 +27,8 @@ docker compose up -d --build
 2. Tạo `.env` từ `.env.example`, thay toàn bộ secret/mật khẩu mặc định bằng giá trị dài, ngẫu nhiên; đặt `COOKIE_SECURE=true` nếu site đã có HTTPS.
 3. Chạy `docker compose up -d --build`. PostgreSQL chỉ ở mạng Docker nội bộ; không mở cổng DB ra Internet.
 4. Đặt nginx/Caddy của server làm reverse proxy HTTPS tới `http://127.0.0.1:8080`, rồi trỏ domain vào VPS.
+
+Nâng cấp schema: thêm file mới `server/db/migrations/V<n>__<mo_ta>.sql` (số tăng dần, không sửa file đã chạy trên server). `docker compose up -d --build` tự áp dụng phần còn thiếu, kể cả trên volume Postgres cũ tạo trước khi có Flyway (baseline phiên bản 0, V1/V2 idempotent). Xem trạng thái: `docker compose run --rm migrate info`.
 
 Dữ liệu bền trong volume `postgres_data`: rebuild `web`/`api` không làm mất dữ liệu. Backup trước mỗi lần nâng cấp lớn:
 

@@ -7,13 +7,31 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sdt}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./server/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      - ./server/db/002-bang-that.sql:/docker-entrypoint-initdb.d/02-bang-that.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sdt} -d ${POSTGRES_DB:-sdt}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Chạy mọi migration còn thiếu trong server/db/migrations rồi thoát. Chạy lại mỗi lần
+  # `up`, nên volume cũ hay mới đều được nâng lên đúng phiên bản (khác với initdb.d).
+  migrate:
+    image: flyway/flyway:10-alpine
+    command: migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-sdt}
+      FLYWAY_USER: ${POSTGRES_USER:-sdt}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-sdt}
+      # CSDL đã có bảng từ bản trước khi dùng Flyway: coi là phiên bản 0 rồi chạy V1, V2...
+      # Các migration V1/V2 viết idempotent (IF NOT EXISTS) nên chạy trên volume cũ vẫn an toàn.
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+      FLYWAY_BASELINE_VERSION: "0"
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./server/db/migrations:/flyway/sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   api:
     build: ./server
@@ -23,8 +41,8 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       NODE_ENV: production
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
       # Vite trên chính máy chủ dùng cổng này; không công khai API ra Internet.
       - "127.0.0.1:${API_PORT:-4000}:4000"
