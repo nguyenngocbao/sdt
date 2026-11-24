@@ -4,6 +4,7 @@ import { Card, MaMan, Trong } from '../components/ui/Ui'
 import { FormE4, FormE5 } from '../components/phieu/FormPhieu'
 import { docNhap, layPhieuMoiNhat, type LoaiPhieu, type PhieuDaNop } from '../data/phieu'
 import { useAuth } from '../lib/auth'
+import { layGoiYCuaToi, type GoiYChoEm } from '../components/goiy/api'
 
 const TEN: Record<LoaiPhieu, string> = { E4: 'Phiếu E4 — Chế tạo và thử tải', E5: 'Phiếu E5 — Cải tiến' }
 
@@ -12,9 +13,11 @@ export function ManA_ViecCuaEm() {
   const nguoi = user?.id ?? ''
   const [phieu, setPhieu] = useState<PhieuDaNop[] | null>(null)
   const [loi, setLoi] = useState('')
+  const [goiY, setGoiY] = useState<GoiYChoEm[]>([])
   const [mo, setMo] = useState<LoaiPhieu | null>(null)
   const tai = useCallback(() => { layPhieuMoiNhat().then(setPhieu).catch((e: Error) => { setLoi(e.message); setPhieu([]) }) }, [])
   useEffect(tai, [tai])
+  useEffect(() => { layGoiYCuaToi().then(setGoiY).catch(() => setGoiY([])) }, [phieu])
 
   const e4 = phieu?.find((p) => p.loai === 'E4') ?? null
   const e5 = phieu?.find((p) => p.loai === 'E5') ?? null
@@ -51,9 +54,12 @@ export function ManA_ViecCuaEm() {
       {loi && <p role="alert" className="mb-3 text-sm text-amber-800">{loi}</p>}
       <div className="space-y-4">
         {phieu === null ? <Trong>Đang tải…</Trong> : <>{the('E4', e4, false)}{the('E5', e5, !e4)}</>}
-        {/* Chỗ sẵn cho khối "Bước tiếp theo của em" — M4 sẽ nối nội dung vào. */}
         <section aria-label="Bước tiếp theo của em" data-khoi="buoc-tiep-theo">
-          <Card title="Bước tiếp theo của em"><Trong>Chưa có nội dung.</Trong></Card>
+          <Card title="Bước tiếp theo của em">
+            {goiY.length === 0
+              ? <Trong>Chưa có gợi ý mới.</Trong>
+              : <ul className="space-y-3">{goiY.map((g) => <li key={g.id} className="rounded-xl bg-mint px-4 py-3 text-[16px] font-semibold leading-snug text-ink">{g.noi_dung}</li>)}</ul>}
+          </Card>
         </section>
       </div>
     </>

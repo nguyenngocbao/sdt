@@ -2,6 +2,7 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import { createServer } from 'node:http'
 import { Pool } from 'pg'
 import { taoGoiYLuat } from './goi-y-luat.mjs'
+import { duyet, ghiSuKienNopLai, goiYCuaHocSinh, hangCho, thongKeNhanh } from './duyet-goi-y.mjs'
 
 const PORT = Number(process.env.PORT ?? 4000)
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://sdt:sdt@localhost:5432/sdt'
@@ -155,6 +156,7 @@ const server = createServer(async (request, response) => {
           )
         }
         const goiY = await taoGoiYLuat(client, rows[0].id)
+        if (thayThe && !nhapHo) await ghiSuKienNopLai(client, maHs, input.loai, rows[0].id)
         await client.query('COMMIT')
         await audit(user, 'NOP_PHIEU', `PHIEU:${rows[0].id}`, { ma_hs: maHs, loai: input.loai })
         return json(response, 201, { id: rows[0].id, thoi_diem: rows[0].thoi_diem, goi_y: goiY.filter((g) => g.trang_thai === 'GUI') })
@@ -186,8 +188,21 @@ const server = createServer(async (request, response) => {
       const user = await currentUser(request)
       if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
       if (user.vai_tro !== 'HOC_SINH' || !user.hoc_sinh_id) return json(response, 403, { message: 'Chỉ học sinh có gợi ý của chính mình.' })
-      const { rows } = await pool.query("SELECT * FROM goi_y WHERE ma_hs = $1 AND trang_thai = 'GUI' ORDER BY thoi_diem, id", [user.hoc_sinh_id])
-      return json(response, 200, { goi_y: rows })
+      return json(response, 200, { goi_y: await goiYCuaHocSinh(pool, user.hoc_sinh_id) })
+    }
+    if (url.pathname.startsWith('/api/gv/')) {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (!['GIAO_VIEN', 'QUAN_TRI'].includes(user.vai_tro)) return json(response, 403, { message: 'Chỉ giáo viên hoặc quản trị được duyệt gợi ý.' })
+      if (request.method === 'GET' && url.pathname === '/api/gv/hang-cho') return json(response, 200, await hangCho(pool, user))
+      if (request.method === 'GET' && url.pathname === '/api/gv/thong-ke-nhanh') return json(response, 200, await thongKeNhanh(pool, user))
+      const duyetMatch = url.pathname.match(/^\/api\/gv\/duyet\/([^/]+)$/)
+      if (request.method === 'POST' && duyetMatch) {
+        if (!ID_RE.test(duyetMatch[1])) return json(response, 400, { message: 'Mã gợi ý không hợp lệ.' })
+        const ketQua = await duyet(pool, user, duyetMatch[1], await body(request))
+        if (ketQua.code === 200) await audit(user, 'DUYET_GOI_Y', `GOI_Y:${duyetMatch[1]}`, { quyet_dinh: ketQua.data.quyet_dinh })
+        return json(response, ketQua.code, ketQua.data)
+      }
     }
     if (request.method === 'GET' && url.pathname === '/api/phieu/cua-toi') {
       const user = await currentUser(request)
