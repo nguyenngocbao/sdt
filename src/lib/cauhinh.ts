@@ -1,7 +1,9 @@
 /** Kiểm tra tính hợp lệ của một phiên bản cấu hình bài học (S15). Đây là phép kiểm THẬT, chạy trên dữ liệu ánh xạ. */
 import type { PhienBanCauHinh } from '../types'
 import { HOAT_DONG, TEN_NGAN } from '../data/khbd'
-import { CHI_BAO_LOI_12 } from '../data/builders'
+import { CHI_BAO } from '../data/rubric'
+
+const CHI_BAO_LOI_12 = Object.values(CHI_BAO).filter((cb) => cb.la_chi_bao_loi).map((cb) => cb.ma)
 
 export const NGAN_HANG_CHI_BAO = [...new Set(HOAT_DONG.flatMap((h) => h.chi_bao))]
 export const NGAN_HANG_MINH_CHUNG = ['P0', 'E1', 'E2', 'E3', 'E4', 'E5', 'P1']

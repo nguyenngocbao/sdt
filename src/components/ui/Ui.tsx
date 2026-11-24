@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode, type ButtonHTMLAttributes } from 'react'
 import { ChevronRight, CloudUpload, Info, ShieldAlert, X } from 'lucide-react'
 import { useApp } from '../../lib/store'
-import { nhanDocLap, nhanTrangThai } from '../../lib/trace'
+import { nhanDocLap, nhanTrangThai } from '../../lib/nhan'
 import type { TinhDocLap, TrangThaiChatLuong } from '../../types'
 
 /* ── Chip trạng thái ───────────────────────────────────────────────────────── */

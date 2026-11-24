@@ -19,7 +19,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-async function request(path: string, init?: RequestInit) {
+export async function request(path: string, init?: RequestInit) {
   const response = await fetch(path, {
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
@@ -28,14 +28,6 @@ async function request(path: string, init?: RequestInit) {
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data.message ?? 'Không thể kết nối máy chủ.')
   return data
-}
-
-export async function layTrangThaiLop(lopId: string) {
-  return request(`/api/lop/${encodeURIComponent(lopId)}/trang-thai`)
-}
-
-export async function luuTrangThaiLop(lopId: string, data: unknown) {
-  return request(`/api/lop/${encodeURIComponent(lopId)}/trang-thai`, { method: 'PUT', body: JSON.stringify({ data }) })
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

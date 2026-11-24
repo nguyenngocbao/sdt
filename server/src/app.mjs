@@ -1,6 +1,9 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import { Pool } from 'pg'
+import { taoGoiYLuat } from './goi-y-luat.mjs'
+import { ghiQuanSat, lopCuaGiaoVien } from './quan-sat.mjs'
+import { duyet, ghiSuKienNopLai, goiYCuaHocSinh, hangCho, thongKeNhanh } from './duyet-goi-y.mjs'
 
 const PORT = Number(process.env.PORT ?? 4000)
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://sdt:sdt@localhost:5432/sdt'
@@ -72,28 +75,16 @@ async function currentUser(request) {
   const { rows } = await pool.query('SELECT * FROM nguoi_dung WHERE id = $1 AND dang_hoat_dong = true', [session.sub])
   return rows[0] ?? null
 }
-function canAccess(user, lopId) { return user && (user.vai_tro === 'QUAN_TRI' || user.lop_id === lopId) }
-function same(a, b) { return JSON.stringify(a) === JSON.stringify(b) }
-function onlyStudentChanges(before, after, user) {
-  if (!before) return false
-  const protectedKeys = ['nhom', 'nhiem_vu', 'danh_gia', 'trang_thai', 'chan_doan', 'goi_y_ai', 'quyet_dinh', 'quan_sat', 'cau_hinh', 'nhat_ky_xuat', 'ghi_chu_gv']
-  if (protectedKeys.some((key) => !same(before[key], after[key]))) return false
-  const oldStudents = new Map((before.hoc_sinh ?? []).map((x) => [x.id, x]))
-  if ((after.hoc_sinh ?? []).some((student) => {
-    const old = oldStudents.get(student.id)
-    if (!old) return true
-    if (student.id !== user.hoc_sinh_id) return !same(old, student)
-    const { tien_do: oldProgress, ...oldRest } = old
-    const { tien_do: newProgress, ...newRest } = student
-    return !same(oldRest, newRest) || typeof newProgress !== 'string' || newProgress.length !== oldProgress.length
-  })) return false
-  const oldEvidence = new Map((before.minh_chung ?? []).map((x) => [x.id, x]))
-  if ((after.minh_chung ?? []).some((x) => oldEvidence.has(x.id) ? !same(oldEvidence.get(x.id), x) : x.hoc_sinh_id !== user.hoc_sinh_id)) return false
-  const oldSupport = new Map((before.ho_tro ?? []).map((x) => [x.id, x]))
-  if ((after.ho_tro ?? []).some((x) => oldSupport.has(x.id) ? !same(oldSupport.get(x.id), x) : x.hoc_sinh_id !== user.hoc_sinh_id)) return false
-  const evidenceIds = new Set((after.minh_chung ?? []).filter((x) => x.hoc_sinh_id === user.hoc_sinh_id).map((x) => x.id))
-  const oldMessages = new Map((before.trao_doi ?? []).map((x) => [x.id, x]))
-  return !(after.trao_doi ?? []).some((x) => oldMessages.has(x.id) ? !same(oldMessages.get(x.id), x) : x.vai_tro !== 'HS' || !evidenceIds.has(x.minh_chung_id))
+const LOAI_PHIEU = ['P0', 'E1', 'E2', 'E3', 'E4', 'E5', 'P1']
+const ID_RE = /^\d{1,18}$/
+
+/** Học sinh: chỉ ma_hs = hoc_sinh_id. Giáo viên: chỉ lop_id của mình. Quản trị: tất cả. */
+async function canAccessHs(user, maHs) {
+  if (!user) return false
+  if (user.vai_tro === 'QUAN_TRI') return true
+  if (user.vai_tro === 'HOC_SINH') return user.hoc_sinh_id === maHs
+  const { rowCount } = await pool.query('SELECT 1 FROM hoc_sinh WHERE ma = $1 AND lop_id = $2', [maHs, user.lop_id])
+  return rowCount > 0
 }
 async function audit(user, action, object, details = {}) {
   await pool.query('INSERT INTO nhat_ky_kiem_toan (nguoi_dung_id, hanh_dong, doi_tuong, chi_tiet) VALUES ($1,$2,$3,$4)', [user?.id ?? null, action, object, details])
@@ -106,6 +97,7 @@ async function seed() {
       'INSERT INTO nguoi_dung (id,email,mat_khau_hash,ho_ten,vai_tro,hoc_sinh_id,lop_id) VALUES ($1,$2,$3,$4,$5,$6,$7)',
       [id, email, hashPassword(password), name, role, studentId, classId],
     )
+    if (role === 'HOC_SINH') await pool.query('INSERT INTO hoc_sinh (ma, ho_ten, lop_id) VALUES ($1,$2,$3) ON CONFLICT (ma) DO NOTHING', [studentId, name, classId])
   }
 }
 
@@ -132,28 +124,123 @@ const server = createServer(async (request, response) => {
       const user = await currentUser(request)
       return user ? json(response, 200, { user: publicUser(user) }) : json(response, 401, { message: 'Chưa đăng nhập.' })
     }
-    const stateMatch = url.pathname.match(/^\/api\/lop\/([^/]+)\/trang-thai$/)
-    if (stateMatch) {
-      const lopId = decodeURIComponent(stateMatch[1])
+    if (request.method === 'POST' && url.pathname === '/api/phieu') {
       const user = await currentUser(request)
-      if (!canAccess(user, lopId)) return json(response, 403, { message: 'Bạn không có quyền truy cập lớp này.' })
-      if (request.method === 'GET') {
-        const { rows } = await pool.query('SELECT du_lieu, phien_ban, updated_at FROM trang_thai_lop WHERE lop_id = $1', [lopId])
-        return json(response, 200, { data: rows[0]?.du_lieu ?? null, version: rows[0]?.phien_ban ?? 0, updated_at: rows[0]?.updated_at ?? null })
-      }
-      if (request.method === 'PUT') {
-        const input = await body(request)
-        if (!input.data || typeof input.data !== 'object') return json(response, 400, { message: 'Thiếu dữ liệu lớp.' })
-        const existing = await pool.query('SELECT du_lieu FROM trang_thai_lop WHERE lop_id = $1', [lopId])
-        if (user.vai_tro === 'HOC_SINH' && !onlyStudentChanges(existing.rows[0]?.du_lieu, input.data, user)) return json(response, 403, { message: 'Học sinh chỉ được cập nhật minh chứng, yêu cầu hỗ trợ và trao đổi của chính mình.' })
-        await pool.query(
-          `INSERT INTO trang_thai_lop (lop_id, du_lieu, phien_ban, cap_nhat_boi) VALUES ($1,$2,1,$3)
-           ON CONFLICT (lop_id) DO UPDATE SET du_lieu = EXCLUDED.du_lieu, phien_ban = trang_thai_lop.phien_ban + 1, cap_nhat_boi = EXCLUDED.cap_nhat_boi, updated_at = now()`,
-          [lopId, input.data, user.id],
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      const input = await body(request)
+      const maHs = user.vai_tro === 'HOC_SINH' ? user.hoc_sinh_id : String(input.ma_hs ?? '')
+      if (!maHs || !(await canAccessHs(user, maHs))) return json(response, 403, { message: 'Bạn không có quyền nộp phiếu cho học sinh này.' })
+      const chang = Number(input.chang)
+      if (!Number.isInteger(chang) || chang < 0 || chang > 6) return json(response, 400, { message: 'Chặng phải là số nguyên từ 0 đến 6.' })
+      if (!LOAI_PHIEU.includes(input.loai)) return json(response, 400, { message: 'Loại phiếu không hợp lệ.' })
+      if (!input.noi_dung || typeof input.noi_dung !== 'object' || Array.isArray(input.noi_dung)) return json(response, 400, { message: 'Thiếu nội dung phiếu.' })
+      const lanThu = Array.isArray(input.lan_thu) ? input.lan_thu : []
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        let thayThe = null
+        if (input.thay_the_cho != null) {
+          if (!ID_RE.test(String(input.thay_the_cho))) { await client.query('ROLLBACK'); return json(response, 400, { message: 'thay_the_cho không hợp lệ.' }) }
+          const old = await client.query('SELECT id FROM phieu WHERE id = $1 AND ma_hs = $2 AND loai = $3', [input.thay_the_cho, maHs, input.loai])
+          if (!old.rowCount) { await client.query('ROLLBACK'); return json(response, 400, { message: 'Bản cũ không tồn tại hoặc không cùng học sinh và loại phiếu.' }) }
+          thayThe = old.rows[0].id
+        }
+        const nhapHo = user.vai_tro !== 'HOC_SINH'
+        const { rows } = await client.query(
+          'INSERT INTO phieu (ma_hs, chang, loai, noi_dung, thay_the_cho, nguoi_tao, nhap_ho) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, thoi_diem',
+          [maHs, chang, input.loai, input.noi_dung, thayThe, user.id, nhapHo],
         )
-        await audit(user, 'CAP_NHAT_DU_LIEU', `LOP:${lopId}`)
-        return json(response, 200, { ok: true })
+        for (const [i, l] of lanThu.entries()) {
+          await client.query(
+            'INSERT INTO lan_thu (phieu_id, lan, tai_g, giu_giay, vi_tri, bien_dang, dang_hong, ghi_chu) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+            [rows[0].id, l.lan ?? i + 1, l.tai_g ?? null, l.giu_giay ?? null, l.vi_tri ?? null, l.bien_dang ?? null, l.dang_hong ?? null, l.ghi_chu ?? null],
+          )
+        }
+        const goiY = await taoGoiYLuat(client, rows[0].id)
+        if (thayThe && !nhapHo) await ghiSuKienNopLai(client, maHs, input.loai, rows[0].id)
+        await client.query('COMMIT')
+        await audit(user, 'NOP_PHIEU', `PHIEU:${rows[0].id}`, { ma_hs: maHs, loai: input.loai })
+        return json(response, 201, { id: rows[0].id, thoi_diem: rows[0].thoi_diem, goi_y: goiY.filter((g) => g.trang_thai === 'GUI') })
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined)
+        throw error
+      } finally { client.release() }
+    }
+    if (request.method === 'POST' && url.pathname === '/api/noi-bo/re-nhanh') {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (!['GIAO_VIEN', 'QUAN_TRI'].includes(user.vai_tro)) return json(response, 403, { message: 'Chỉ giáo viên hoặc quản trị được gọi API nội bộ.' })
+      const input = await body(request)
+      if (!ID_RE.test(String(input.phieu_id ?? ''))) return json(response, 400, { message: 'Mã phiếu không hợp lệ.' })
+      const found = await pool.query('SELECT ma_hs FROM phieu WHERE id = $1', [input.phieu_id])
+      if (!found.rowCount || !(await canAccessHs(user, found.rows[0].ma_hs))) return json(response, 404, { message: 'Không tìm thấy phiếu.' })
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        const goiY = await taoGoiYLuat(client, input.phieu_id)
+        await client.query('COMMIT')
+        return json(response, 200, { goi_y: goiY })
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined)
+        throw error
+      } finally { client.release() }
+    }
+    if (request.method === 'GET' && url.pathname === '/api/goi-y/cua-toi') {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (user.vai_tro !== 'HOC_SINH' || !user.hoc_sinh_id) return json(response, 403, { message: 'Chỉ học sinh có gợi ý của chính mình.' })
+      return json(response, 200, { goi_y: await goiYCuaHocSinh(pool, user.hoc_sinh_id) })
+    }
+    if (url.pathname.startsWith('/api/gv/')) {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (!['GIAO_VIEN', 'QUAN_TRI'].includes(user.vai_tro)) return json(response, 403, { message: 'Chỉ giáo viên hoặc quản trị được duyệt gợi ý.' })
+      if (request.method === 'GET' && url.pathname === '/api/gv/hang-cho') return json(response, 200, await hangCho(pool, user))
+      if (request.method === 'GET' && url.pathname === '/api/gv/thong-ke-nhanh') return json(response, 200, await thongKeNhanh(pool, user))
+      if (request.method === 'POST' && url.pathname === '/api/gv/quan-sat') {
+        const ketQua = await ghiQuanSat(pool, user, await body(request))
+        return json(response, ketQua.code, ketQua.data)
       }
+      if (request.method === 'GET' && url.pathname === '/api/gv/lop') {
+        const ketQua = await lopCuaGiaoVien(pool, user, Number(url.searchParams.get('chang')))
+        return json(response, ketQua.code, ketQua.data)
+      }
+      const duyetMatch = url.pathname.match(/^\/api\/gv\/duyet\/([^/]+)$/)
+      if (request.method === 'POST' && duyetMatch) {
+        if (!ID_RE.test(duyetMatch[1])) return json(response, 400, { message: 'Mã gợi ý không hợp lệ.' })
+        const ketQua = await duyet(pool, user, duyetMatch[1], await body(request))
+        if (ketQua.code === 200) await audit(user, 'DUYET_GOI_Y', `GOI_Y:${duyetMatch[1]}`, { quyet_dinh: ketQua.data.quyet_dinh })
+        return json(response, ketQua.code, ketQua.data)
+      }
+    }
+    if (request.method === 'GET' && url.pathname === '/api/phieu/cua-toi') {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (user.vai_tro !== 'HOC_SINH' || !user.hoc_sinh_id) return json(response, 403, { message: 'Chỉ học sinh có phiếu của chính mình.' })
+      const source = url.searchParams.get('moi_nhat') === 'true' ? 'phieu_moi_nhat' : 'phieu'
+      const { rows } = await pool.query(`SELECT * FROM ${source} WHERE ma_hs = $1 ORDER BY thoi_diem, id`, [user.hoc_sinh_id])
+      return json(response, 200, { phieu: rows })
+    }
+    const historyMatch = url.pathname.match(/^\/api\/phieu\/([^/]+)\/lich-su$/)
+    if (request.method === 'GET' && historyMatch) {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (!ID_RE.test(historyMatch[1])) return json(response, 400, { message: 'Mã phiếu không hợp lệ.' })
+      const found = await pool.query('SELECT ma_hs FROM phieu WHERE id = $1', [historyMatch[1]])
+      if (!found.rowCount || !(await canAccessHs(user, found.rows[0].ma_hs))) return json(response, 404, { message: 'Không tìm thấy phiếu.' })
+      // Chuỗi thay_the_cho: đi ngược về bản gốc và xuôi tới các bản nộp lại.
+      const { rows } = await pool.query(
+        `WITH RECURSIVE cu AS (
+           SELECT * FROM phieu WHERE id = $1
+           UNION SELECT p.* FROM phieu p JOIN cu ON p.id = cu.thay_the_cho
+         ), moi AS (
+           SELECT * FROM phieu WHERE id = $1
+           UNION SELECT p.* FROM phieu p JOIN moi ON p.thay_the_cho = moi.id
+         )
+         SELECT * FROM (SELECT * FROM cu UNION SELECT * FROM moi) t ORDER BY thoi_diem, id`,
+        [historyMatch[1]],
+      )
+      return json(response, 200, { lich_su: rows })
     }
     if (url.pathname === '/api/admin/nguoi-dung') {
       const user = await currentUser(request)
@@ -177,4 +264,4 @@ const server = createServer(async (request, response) => {
   }
 })
 
-seed().then(() => server.listen(PORT, '0.0.0.0', () => console.log(`SDT API listening on ${PORT}`))).catch((error) => { console.error(error); process.exit(1) })
+seed().then(() => server.listen(PORT, process.env.HOST ?? '0.0.0.0', () => console.log(`SDT API listening on ${PORT}`))).catch((error) => { console.error(error); process.exit(1) })

@@ -2,8 +2,9 @@
  * Dựng gói dữ liệu nghiên cứu THẬT từ đồ thị dữ liệu, có ẩn danh hoá.
  * Nguyên tắc F12: đi kèm thông tin mô tả (phiên bản KHBD, rubric, catalog, cấu hình), ghi ai xuất gì lúc nào.
  */
-import type { DuLieu } from './trace'
-import { CAU_HINH } from '../data/seed'
+import type { DuLieu } from './xuat-types'
+import { RUBRIC_PHIEN_BAN } from '../data/rubric'
+import { CATALOG_PHIEN_BAN } from '../data/catalog'
 
 export interface CaiDatAnDanh { maHoaDinhDanh: boolean; loaiNhayCam: boolean; giuNhomLop: boolean; themNhieu: boolean }
 export type LoaiDuLieu = 'ALL' | 'MINH_CHUNG' | 'DANH_GIA' | 'TRANG_THAI' | 'HO_TRO'
@@ -15,7 +16,7 @@ const RE_EMAIL = /[\w.+-]+@[\w-]+\.[\w.]+/g
 const RE_SDT = /(?:\+?84|0)\d{8,10}/g
 
 export function taoAnDanh(dl: DuLieu, c: CaiDatAnDanh) {
-  const ma = new Map(dl.hoc_sinh.map((h, i) => [h.id, `HS_${CAU_HINH.lop}_${String(i + 1).padStart(3, '0')}`]))
+  const ma = new Map(dl.hoc_sinh.map((h, i) => [h.id, `HS_${h.lop}_${String(i + 1).padStart(3, '0')}`]))
   const id = (x: string | null) => (x ? (c.maHoaDinhDanh ? ma.get(x) ?? x : x) : null)
   const lam = (t: string | null) => {
     if (!t) return t
@@ -61,8 +62,8 @@ export function thongTinMoTa(dl: DuLieu, c: CaiDatAnDanh, nguoi: string) {
   const ver = dl.cau_hinh.find((x) => x.hien_tai) ?? dl.cau_hinh[0]
   return {
     he_thong: 'SDT – Bản sao số học sinh (nguyên mẫu)', xuat_boi: nguoi, thoi_diem: new Date().toISOString(),
-    phien_ban: { khbd: CAU_HINH.khbd_phien_ban, bang_mo_ta_muc: CAU_HINH.rubric_phien_ban, catalog_chan_doan: CAU_HINH.catalog_phien_ban, cau_hinh_bai_hoc: ver.id },
+    phien_ban: { khbd: 'KHBD_v0.3', bang_mo_ta_muc: RUBRIC_PHIEN_BAN, catalog_chan_doan: CATALOG_PHIEN_BAN, cau_hinh_bai_hoc: ver?.id ?? null },
     an_danh: c,
-    luu_y: 'Dữ liệu hư cấu phục vụ demo. Trạng thái SDT là giả thuyết sư phạm cập nhật theo nhịp giáo viên, không phải điểm năng lực.',
+    luu_y: 'Trạng thái SDT là giả thuyết sư phạm cập nhật theo nhịp giáo viên, không phải điểm năng lực.',
   }
 }
