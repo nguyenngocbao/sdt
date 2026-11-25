@@ -3,6 +3,8 @@ import { PageHead } from '../components/layout/PageHead'
 import { Card, MaMan, Trong } from '../components/ui/Ui'
 import { BangSoLieu } from '../components/phieu/BangSoLieu'
 import { BangChenhLech } from '../components/phieu/ChenhLech'
+import { XemTheoMau } from '../components/phieu/FormTheoMau'
+import { MAU, type LoaiTheoMau } from '../data/mauPhieu'
 import { chenhLech, layMoiPhieu, type PhieuDaNop, type TomTatLanThu } from '../data/phieu'
 
 const ds = (p: PhieuDaNop) => (p.noi_dung.tom_tat_lan_thu as TomTatLanThu[]) ?? []
@@ -26,6 +28,14 @@ export function ManB_BaiDaNop() {
           {e4Moi && e5Moi && (
             <Card title="Số liệu của em: v1 so với v2"><BangChenhLech cl={chenhLech(ds(e4Moi), ds(e5Moi))} duDoan={String(e5Moi.noi_dung.du_doan_tai_moi_g ?? '')} /></Card>
           )}
+          {[...phieu].reverse().filter((p) => p.loai in MAU).map((p) => {
+            const cung = cuaLoai(p.loai)
+            return (
+              <Card key={p.id} title={`${MAU[p.loai as LoaiTheoMau].ten} — ${gio(p)}`} sub={p === cung[cung.length - 1] ? 'Bản mới nhất' : 'Bản cũ (đã được nộp lại)'}>
+                <XemTheoMau mau={MAU[p.loai as LoaiTheoMau]} p={p} />
+              </Card>
+            )
+          })}
           {[...e4, ...e5].reverse().map((p) => (
             <Card key={p.id} title={`${p.loai === 'E4' ? 'Phiếu E4 · v1' : 'Phiếu E5 · v2'} — ${gio(p)}`} sub={p === e4Moi || p === e5Moi ? 'Bản mới nhất' : 'Bản cũ (đã được nộp lại)'}>
               <BangSoLieu ds={ds(p)} />

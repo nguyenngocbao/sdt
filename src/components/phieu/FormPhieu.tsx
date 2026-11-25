@@ -96,7 +96,7 @@ export function FormE5({ nguoi, e4, cu, onXong, onDong }: Props & { e4: PhieuDaN
   )
 }
 
-function Nut({ onNop, onDong, dangNop }: { onNop: () => void; onDong: () => void; dangNop: boolean }) {
+export function Nut({ onNop, onDong, dangNop }: { onNop: () => void; onDong: () => void; dangNop: boolean }) {
   return (
     <div className="mt-5 flex gap-2">
       <button type="button" disabled={dangNop} onClick={onNop} className="min-h-12 flex-1 rounded-xl bg-brand-600 px-4 text-[15px] font-bold text-white disabled:opacity-60">{dangNop ? 'Đang nộp…' : 'Nộp phiếu'}</button>

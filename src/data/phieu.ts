@@ -17,8 +17,9 @@ export interface LanThu {
   ghi_chu: string
 }
 
-export type LoaiPhieu = 'E4' | 'E5'
-export const CHANG: Record<LoaiPhieu, number> = { E4: 4, E5: 5 }
+export type LoaiPhieu = 'P0' | 'E1' | 'E2' | 'E3' | 'E4' | 'E5' | 'P1'
+/** Chặng của từng phiếu, khớp TEN_CHANG ở Màn C (0 khởi động … 6 bảo vệ). */
+export const CHANG: Record<LoaiPhieu, number> = { P0: 0, E1: 1, E2: 2, E3: 3, E4: 4, E5: 5, P1: 6 }
 
 export interface NhapE4 {
   lan_thu: LanThu[]
