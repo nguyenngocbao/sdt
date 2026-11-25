@@ -16,7 +16,9 @@ services:
   # Chạy mọi migration còn thiếu trong server/db/migrations rồi thoát. Chạy lại mỗi lần
   # `up`, nên volume cũ hay mới đều được nâng lên đúng phiên bản (khác với initdb.d).
   migrate:
-    image: flyway/flyway:10-alpine
+    build:
+      context: ./server/db
+      dockerfile: Dockerfile.migrate
     command: migrate
     environment:
       FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-sdt}
@@ -27,8 +29,6 @@ services:
       FLYWAY_BASELINE_ON_MIGRATE: "true"
       FLYWAY_BASELINE_VERSION: "0"
       FLYWAY_LOCATIONS: filesystem:/flyway/sql
-    volumes:
-      - ./server/db/migrations:/flyway/sql:ro
     depends_on:
       postgres:
         condition: service_healthy
