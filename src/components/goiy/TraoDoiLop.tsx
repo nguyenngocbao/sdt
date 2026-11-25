@@ -40,7 +40,7 @@ export function TraoDoiLop({ dem, muc, onDoi }: { dem: Record<BuocTraoDoi, numbe
       </section>
 
       {hien.length === 0 && <Trong>Không có thẻ nào ở trạng thái này.</Trong>}
-      {hien.map((m) => <TheTraoDoi key={m.id} m={m} onDoi={onDoi} />)}
+      {hien.map((m) => <TheTraoDoi key={`${m.id}-${m.buoc}`} m={m} onDoi={onDoi} />)}
     </div>
   )
 }
