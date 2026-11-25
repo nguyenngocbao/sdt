@@ -5,6 +5,7 @@ import { taoGoiYLuat } from './goi-y-luat.mjs'
 import { ghiQuanSat, lopCuaGiaoVien } from './quan-sat.mjs'
 import { duyet, ghiSuKienNopLai, hangCho, thongKeNhanh } from './duyet-goi-y.mjs'
 import { guiTraoDoi, hoiThoaiCuaHocSinh, hoiThoaiCuaLop } from './trao-doi.mjs'
+import { cacLopCuaToi, chonLopDangDay, dinhTuyenLop } from './lop.mjs'
 
 const PORT = Number(process.env.PORT ?? 4000)
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://sdt:sdt@localhost:5432/sdt'
@@ -60,6 +61,9 @@ function cookie(token, maxAge = 60 * 60 * 12) {
 function publicUser(row) {
   return { id: row.id, email: row.email, ho_ten: row.ho_ten, vai_tro: row.vai_tro, hoc_sinh_id: row.hoc_sinh_id, lop_id: row.lop_id }
 }
+async function publicUserDayDu(user) {
+  return { ...publicUser(user), cac_lop: user.cac_lop ?? (await cacLopCuaToi(pool, user)) }
+}
 async function body(request) {
   const chunks = []
   for await (const chunk of request) chunks.push(chunk)
@@ -74,7 +78,13 @@ async function currentUser(request) {
   const session = readSession(request)
   if (!session) return null
   const { rows } = await pool.query('SELECT * FROM nguoi_dung WHERE id = $1 AND dang_hoat_dong = true', [session.sub])
-  return rows[0] ?? null
+  const user = rows[0] ?? null
+  if (user?.vai_tro === 'GIAO_VIEN') {
+    // Giáo viên dạy nhiều lớp: lớp làm việc lấy từ header x-lop-id, chỉ nhận nếu được gán. Mọi truy vấn cũ dùng user.lop_id nên tự giới hạn theo lớp này.
+    user.cac_lop = await cacLopCuaToi(pool, user)
+    user.lop_id = chonLopDangDay(user.cac_lop, user, request.headers['x-lop-id'])
+  }
+  return user
 }
 const LOAI_PHIEU = ['P0', 'E1', 'E2', 'E3', 'E4', 'E5', 'P1']
 const ID_RE = /^\d{1,18}$/
@@ -84,7 +94,7 @@ async function canAccessHs(user, maHs) {
   if (!user) return false
   if (user.vai_tro === 'QUAN_TRI') return true
   if (user.vai_tro === 'HOC_SINH') return user.hoc_sinh_id === maHs
-  const { rowCount } = await pool.query('SELECT 1 FROM hoc_sinh WHERE ma = $1 AND lop_id = $2', [maHs, user.lop_id])
+  const { rowCount } = await pool.query('SELECT 1 FROM hoc_sinh h JOIN giao_vien_lop g ON g.lop_id = h.lop_id WHERE h.ma = $1 AND g.giao_vien_id = $2', [maHs, user.id])
   return rowCount > 0
 }
 async function audit(user, action, object, details = {}) {
@@ -98,6 +108,7 @@ async function seed() {
       'INSERT INTO nguoi_dung (id,email,mat_khau_hash,ho_ten,vai_tro,hoc_sinh_id,lop_id) VALUES ($1,$2,$3,$4,$5,$6,$7)',
       [id, email, hashPassword(password), name, role, studentId, classId],
     )
+    if (role === 'GIAO_VIEN') await pool.query('INSERT INTO giao_vien_lop (giao_vien_id, lop_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [id, classId])
     if (role === 'HOC_SINH') await pool.query('INSERT INTO hoc_sinh (ma, ho_ten, lop_id) VALUES ($1,$2,$3) ON CONFLICT (ma) DO NOTHING', [studentId, name, classId])
   }
 }
@@ -114,7 +125,7 @@ const server = createServer(async (request, response) => {
       if (input.vai_tro && input.vai_tro !== user.vai_tro) return json(response, 403, { message: 'Tài khoản này không thuộc cổng đăng nhập đã chọn.' })
       const token = sign({ sub: user.id, exp: Date.now() + 1000 * 60 * 60 * 12 })
       await audit(user, 'DANG_NHAP', 'PHIEN')
-      return json(response, 200, { user: publicUser(user) }, { 'set-cookie': cookie(token) })
+      return json(response, 200, { user: await publicUserDayDu(user) }, { 'set-cookie': cookie(token) })
     }
     if (request.method === 'POST' && url.pathname === '/api/auth/logout') {
       const user = await currentUser(request)
@@ -123,7 +134,7 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'GET' && url.pathname === '/api/auth/me') {
       const user = await currentUser(request)
-      return user ? json(response, 200, { user: publicUser(user) }) : json(response, 401, { message: 'Chưa đăng nhập.' })
+      return user ? json(response, 200, { user: await publicUserDayDu(user) }) : json(response, 401, { message: 'Chưa đăng nhập.' })
     }
     if (request.method === 'POST' && url.pathname === '/api/phieu') {
       const user = await currentUser(request)
@@ -253,6 +264,13 @@ const server = createServer(async (request, response) => {
       )
       return json(response, 200, { lich_su: rows })
     }
+    if (url.pathname === '/api/lop' || url.pathname.startsWith('/api/lop/') || url.pathname.startsWith('/api/hoc-sinh/') || url.pathname === '/api/giao-vien') {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (user.vai_tro === 'HOC_SINH') return json(response, 403, { message: 'Chức năng dành cho giáo viên và quản trị viên.' })
+      const ketQua = await dinhTuyenLop({ pool, user, hashPassword, audit }, { method: request.method, path: url.pathname, input: ['POST', 'PUT', 'PATCH'].includes(request.method ?? '') ? await body(request) : {} })
+      if (ketQua) return json(response, ketQua.code, ketQua.data)
+    }
     if (url.pathname === '/api/admin/nguoi-dung') {
       const user = await currentUser(request)
       if (user?.vai_tro !== 'QUAN_TRI') return json(response, 403, { message: 'Chỉ quản trị viên được thực hiện.' })
@@ -263,7 +281,22 @@ const server = createServer(async (request, response) => {
       if (request.method === 'POST') {
         const input = await body(request)
         if (!input.id || !input.email || !input.ho_ten || !input.vai_tro || !input.mat_khau) return json(response, 400, { message: 'Thiếu thông tin bắt buộc.' })
-        await pool.query('INSERT INTO nguoi_dung (id,email,mat_khau_hash,ho_ten,vai_tro,hoc_sinh_id,lop_id) VALUES ($1,$2,$3,$4,$5,$6,$7)', [input.id, input.email, hashPassword(input.mat_khau), input.ho_ten, input.vai_tro, input.hoc_sinh_id ?? null, input.lop_id ?? '10A1'])
+        if (!['HOC_SINH', 'GIAO_VIEN', 'QUAN_TRI'].includes(input.vai_tro)) return json(response, 400, { message: 'Vai trò không hợp lệ.' })
+        const lopId = input.lop_id ?? '10A1'
+        if (!(await pool.query('SELECT 1 FROM lop_hoc WHERE id = $1', [lopId])).rowCount) return json(response, 400, { message: `Lớp ${lopId} chưa tồn tại.` })
+        const maHs = input.vai_tro === 'HOC_SINH' ? (input.hoc_sinh_id ?? input.id) : (input.hoc_sinh_id ?? null)
+        const client = await pool.connect()
+        try {
+          await client.query('BEGIN')
+          if (input.vai_tro === 'HOC_SINH') await client.query('INSERT INTO hoc_sinh (ma, ho_ten, lop_id) VALUES ($1,$2,$3)', [maHs, input.ho_ten, lopId])
+          await client.query('INSERT INTO nguoi_dung (id,email,mat_khau_hash,ho_ten,vai_tro,hoc_sinh_id,lop_id) VALUES ($1,$2,$3,$4,$5,$6,$7)', [input.id, input.email, hashPassword(input.mat_khau), input.ho_ten, input.vai_tro, maHs, lopId])
+          if (input.vai_tro === 'GIAO_VIEN') await client.query('INSERT INTO giao_vien_lop (giao_vien_id, lop_id) VALUES ($1,$2)', [input.id, lopId])
+          await client.query('COMMIT')
+        } catch (e) {
+          await client.query('ROLLBACK').catch(() => undefined)
+          if (e?.code === '23505') return json(response, 409, { message: 'Mã hoặc email đã có tài khoản.' })
+          throw e
+        } finally { client.release() }
         await audit(user, 'TAO_TAI_KHOAN', `NGUOI_DUNG:${input.id}`)
         return json(response, 201, { ok: true })
       }
