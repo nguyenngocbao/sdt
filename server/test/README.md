@@ -66,3 +66,16 @@ quyền PostgreSQL cục bộ; không nới quyền hay đổi cấu hình hệ 
 API hiện tại tự bind `0.0.0.0`; bộ kiểm thử gọi API qua `127.0.0.1` trên cổng
 tạm, PostgreSQL chỉ lắng nghe loopback. Không sửa hành vi bind của API trong
 task kiểm thử này.
+
+## Trao đổi quanh gợi ý
+
+```sh
+node server/test/trao-doi.mjs
+```
+
+Cùng cách dựng DB tạm như trên (cần cài `server/test`, không chạy bằng root).
+In PASS cho 6 mục: gợi ý còn CHO không được trao đổi; học sinh chỉ thấy câu đã
+gửi, không thấy căn cứ hay câu gốc; kiểm tra loại tin, độ dài và quyền theo em,
+theo lớp; gửi lại cùng `ma_gui` (kể cả hai request đồng thời) chỉ ghi một dòng;
+vòng hỏi → giáo viên trả lời → em hiểu → nộp lại đổi đúng `buoc` ở cả hai phía;
+`trao_doi` chặn UPDATE/DELETE.

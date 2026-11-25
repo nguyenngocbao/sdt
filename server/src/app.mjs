@@ -3,7 +3,8 @@ import { createServer } from 'node:http'
 import { Pool } from 'pg'
 import { taoGoiYLuat } from './goi-y-luat.mjs'
 import { ghiQuanSat, lopCuaGiaoVien } from './quan-sat.mjs'
-import { duyet, ghiSuKienNopLai, goiYCuaHocSinh, hangCho, thongKeNhanh } from './duyet-goi-y.mjs'
+import { duyet, ghiSuKienNopLai, hangCho, thongKeNhanh } from './duyet-goi-y.mjs'
+import { guiTraoDoi, hoiThoaiCuaHocSinh, hoiThoaiCuaLop } from './trao-doi.mjs'
 
 const PORT = Number(process.env.PORT ?? 4000)
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://sdt:sdt@localhost:5432/sdt'
@@ -189,7 +190,16 @@ const server = createServer(async (request, response) => {
       const user = await currentUser(request)
       if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
       if (user.vai_tro !== 'HOC_SINH' || !user.hoc_sinh_id) return json(response, 403, { message: 'Chỉ học sinh có gợi ý của chính mình.' })
-      return json(response, 200, { goi_y: await goiYCuaHocSinh(pool, user.hoc_sinh_id) })
+      return json(response, 200, { goi_y: await hoiThoaiCuaHocSinh(pool, user.hoc_sinh_id) })
+    }
+    const traoDoiMatch = url.pathname.match(/^\/api\/goi-y\/([^/]+)\/trao-doi$/)
+    if (request.method === 'POST' && traoDoiMatch) {
+      const user = await currentUser(request)
+      if (!user) return json(response, 401, { message: 'Chưa đăng nhập.' })
+      if (!ID_RE.test(traoDoiMatch[1])) return json(response, 400, { message: 'Mã gợi ý không hợp lệ.' })
+      const ketQua = await guiTraoDoi(pool, user, traoDoiMatch[1], await body(request))
+      if (ketQua.code === 201) await audit(user, 'TRAO_DOI_GOI_Y', `GOI_Y:${traoDoiMatch[1]}`, { loai: ketQua.data.tin.loai })
+      return json(response, ketQua.code, ketQua.data)
     }
     if (url.pathname.startsWith('/api/gv/')) {
       const user = await currentUser(request)
@@ -197,6 +207,7 @@ const server = createServer(async (request, response) => {
       if (!['GIAO_VIEN', 'QUAN_TRI'].includes(user.vai_tro)) return json(response, 403, { message: 'Chỉ giáo viên hoặc quản trị được duyệt gợi ý.' })
       if (request.method === 'GET' && url.pathname === '/api/gv/hang-cho') return json(response, 200, await hangCho(pool, user))
       if (request.method === 'GET' && url.pathname === '/api/gv/thong-ke-nhanh') return json(response, 200, await thongKeNhanh(pool, user))
+      if (request.method === 'GET' && url.pathname === '/api/gv/trao-doi') return json(response, 200, await hoiThoaiCuaLop(pool, user))
       if (request.method === 'POST' && url.pathname === '/api/gv/quan-sat') {
         const ketQua = await ghiQuanSat(pool, user, await body(request))
         return json(response, ketQua.code, ketQua.data)

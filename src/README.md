@@ -35,3 +35,24 @@ Các lệnh phát triển và kiểm tra là scripts trong [package.json](../pac
 Nghiệm thu M0: lint, build, điều hướng đủ năm màn trên dev server, đối chiếu
 22 export UI với tag demo, xác nhận thay đổi chỉ trong `src/` và các ref
 `main`, `demo-v0` không đổi. Đăng nhập với backend thật được nghiệm thu ở M1.
+
+## Trao đổi quanh gợi ý
+
+Sau khi giáo viên bấm Gửi hoặc Sửa rồi gửi ở Màn D, gợi ý thành một cuộc
+hội thoại ngắn giữa em và thầy cô (bảng `trao_doi`, migration V3, append-only).
+
+| Bước (`buoc`) | Nghĩa | Học sinh thấy | Giáo viên thấy |
+|---|---|---|---|
+| `CHO_EM` | Em chưa phản hồi | Ba nút: Em hiểu rồi / Em chưa hiểu / Em muốn hỏi | Chưa phản hồi |
+| `CAN_GV` | Tin cuối là em chưa hiểu hoặc em hỏi | Đang chờ thầy cô trả lời | Cần trả lời (đỏ, lên đầu danh sách) |
+| `GV_DA_TRA_LOI` | Thầy cô vừa trả lời | Băng báo "Thầy cô vừa trả lời" | Chờ em |
+| `EM_HIEU` | Em bấm Em hiểu rồi | Nút Làm lại phiếu nổi bật | Em đã hiểu |
+| `DA_LAM_LAI` | Em nộp lại phiếu cùng loại sau khi nhận gợi ý | Thẻ thu gọn màu xanh | Đã làm lại |
+
+`buoc` tính lại từ dữ liệu mỗi lần đọc, không lưu riêng. Nút "Làm lại phiếu
+… theo gợi ý" mở form nộp lại ngay trên Màn A, có khung nhắc lại các gợi ý.
+Hai màn tự tải lại mỗi 20 giây khi tab đang hiện. Mỗi lần bấm gửi kèm một
+`ma_gui`; bấm gửi lại sau khi mất mạng không tạo tin trùng.
+
+API: `GET /api/goi-y/cua-toi` (thêm `loai_phieu`, `trao_doi`, `buoc`,
+`nop_lai_luc`), `POST /api/goi-y/:id/trao-doi`, `GET /api/gv/trao-doi`.
