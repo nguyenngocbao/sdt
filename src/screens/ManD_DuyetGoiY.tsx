@@ -32,7 +32,7 @@ export function ManD_DuyetGoiY() {
       <PageHead crumbs={['Lớp học', 'Duyệt gợi ý']} title={<><MaMan ma="D" />Duyệt gợi ý</>} sub="Thiết kế cầu giấy chịu lực" />
       {loi && <p role="alert" className="mb-3 text-sm text-amber-800">{loi}</p>}
       <div className="mb-4">
-        <Tabs value={tab} onChange={setTab} tabs={[
+        <Tabs value={tab} onChange={(t) => { setTab(t); tai() }} tabs={[
           { id: 'duyet', nhan: <>Chờ duyệt{the ? <Dem so={the.length} /> : null}</> },
           { id: 'trao_doi', nhan: <>Trao đổi với học sinh{canTraLoi > 0 && <Dem so={canTraLoi} gap />}</> },
         ]} />
