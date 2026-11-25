@@ -2,13 +2,24 @@ import { useCallback, useEffect, useState } from 'react'
 import { PageHead } from '../components/layout/PageHead'
 import { Card, MaMan, Trong } from '../components/ui/Ui'
 import { FormE4, FormE5 } from '../components/phieu/FormPhieu'
+import { FormTheoMau } from '../components/phieu/FormTheoMau'
+import { MAU, type LoaiTheoMau } from '../data/mauPhieu'
 import { docNhap, layPhieuMoiNhat, type LoaiPhieu, type PhieuDaNop } from '../data/phieu'
 import { useAuth } from '../lib/auth'
 import { layGoiYCuaToi, type GoiYChoEm } from '../components/goiy/api'
 import { TheGoiYChoEm } from '../components/goiy/TheGoiYChoEm'
 import { BellRing } from 'lucide-react'
 
-const TEN: Record<LoaiPhieu, string> = { E4: 'Phiếu E4 — Chế tạo và thử tải', E5: 'Phiếu E5 — Cải tiến' }
+const TEN: Record<LoaiPhieu, string> = {
+  P0: MAU.P0.ten, E1: MAU.E1.ten, E2: MAU.E2.ten, E3: MAU.E3.ten,
+  E4: 'Phiếu E4 — Chế tạo và thử tải', E5: 'Phiếu E5 — Cải tiến', P1: MAU.P1.ten,
+}
+const HOAT_DONG: Record<LoaiPhieu, string> = {
+  P0: MAU.P0.hoatDong, E1: MAU.E1.hoatDong, E2: MAU.E2.hoatDong, E3: MAU.E3.hoatDong, E4: 'HĐ4 · Tiết 3', E5: 'HĐ5 · Tiết 4', P1: MAU.P1.hoatDong,
+}
+/** Thứ tự phiếu theo tiến trình bài dạy. */
+const THU_TU: LoaiPhieu[] = ['P0', 'E1', 'E2', 'E3', 'E4', 'E5', 'P1']
+const theoMau = (l: LoaiPhieu): l is LoaiTheoMau => l in MAU
 
 export function ManA_ViecCuaEm() {
   const { user } = useAuth()
@@ -27,8 +38,8 @@ export function ManA_ViecCuaEm() {
     return () => window.clearInterval(id)
   }, [taiGoiY])
 
-  const e4 = phieu?.find((p) => p.loai === 'E4') ?? null
-  const e5 = phieu?.find((p) => p.loai === 'E5') ?? null
+  const cuaLoai = (l: LoaiPhieu) => phieu?.find((p) => p.loai === l) ?? null
+  const e4 = cuaLoai('E4')
   const xong = () => { setMo(null); tai() }
   const lamLai = (loai: LoaiPhieu) => {
     setMo(loai)
@@ -41,7 +52,7 @@ export function ManA_ViecCuaEm() {
   const the = (loai: LoaiPhieu, cu: PhieuDaNop | null, khoa: boolean) => {
     const nhap = docNhap(nguoi, loai) !== null
     return (
-      <div key={loai} id={`phieu-${loai}`} className="scroll-mt-20"><Card title={TEN[loai]} tone={cu ? 'mint' : undefined}>
+      <div key={loai} id={`phieu-${loai}`} className="scroll-mt-20"><Card title={TEN[loai]} sub={HOAT_DONG[loai]} tone={cu ? 'mint' : undefined}>
         {mo === loai && dangLam.some((g) => g.loai_phieu === loai) && (
           <aside aria-label="Gợi ý cần nhớ khi làm lại" className="mb-3 rounded-xl bg-amber-50 px-3.5 py-3 ring-1 ring-amber-200">
             <p className="mb-1 text-[12px] font-bold uppercase tracking-wide text-amber-800">Thầy cô gợi ý</p>
@@ -51,9 +62,11 @@ export function ManA_ViecCuaEm() {
           </aside>
         )}
         {mo === loai ? (
-          loai === 'E4'
-            ? <FormE4 nguoi={nguoi} cu={cu} onXong={xong} onDong={() => setMo(null)} />
-            : e4 && <FormE5 nguoi={nguoi} e4={e4} cu={cu} onXong={xong} onDong={() => setMo(null)} />
+          theoMau(loai)
+            ? <FormTheoMau mau={MAU[loai]} nguoi={nguoi} cu={cu} onXong={xong} onDong={() => setMo(null)} />
+            : loai === 'E4'
+              ? <FormE4 nguoi={nguoi} cu={cu} onXong={xong} onDong={() => setMo(null)} />
+              : e4 && <FormE5 nguoi={nguoi} e4={e4} cu={cu} onXong={xong} onDong={() => setMo(null)} />
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-[13.5px] text-ink-soft">
@@ -94,7 +107,7 @@ export function ManA_ViecCuaEm() {
       )}
       <div className="space-y-5">
         {dangLam.length > 0 && khoiGoiY}
-        {phieu === null ? <Trong>Đang tải…</Trong> : <>{the('E4', e4, false)}{the('E5', e5, !e4)}</>}
+        {phieu === null ? <Trong>Đang tải…</Trong> : THU_TU.map((l) => the(l, cuaLoai(l), l === 'E5' && !e4))}
         {dangLam.length === 0 && khoiGoiY}
       </div>
     </>
