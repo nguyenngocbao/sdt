@@ -1,0 +1,4 @@
+# Flyway kèm sẵn các file migration trong image, thay vì bind-mount thư mục từ máy chủ.
+# Lý do: container migrate cũ giữ mount tới thư mục đã bị git thay khi pull/checkout nên chỉ thấy V1–V3.
+FROM flyway/flyway:10-alpine
+COPY migrations /flyway/sql

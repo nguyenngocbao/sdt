@@ -79,3 +79,14 @@ gửi, không thấy căn cứ hay câu gốc; kiểm tra loại tin, độ dài
 theo lớp; gửi lại cùng `ma_gui` (kể cả hai request đồng thời) chỉ ghi một dòng;
 vòng hỏi → giáo viên trả lời → em hiểu → nộp lại đổi đúng `buoc` ở cả hai phía;
 `trao_doi` chặn UPDATE/DELETE.
+
+## Quản lý lớp & học sinh
+
+```sh
+node server/test/lop.mjs
+```
+
+DB tạm riêng như các bài trên. Kiểm tạo lớp (mã tự sinh/trùng), thêm học sinh hàng loạt
+(rollback cả đợt khi có dòng lỗi hoặc trùng email), đổi lớp làm việc bằng `x-lop-id`,
+phân quyền theo lớp, gán/gỡ giáo viên (gỡ hết lớp thì không thấy học sinh nào), đặt lại
+mật khẩu, khoá tài khoản (phiên vô hiệu), chuyển lớp và nhật ký kiểm toán.
