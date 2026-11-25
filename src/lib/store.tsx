@@ -2,12 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { NopPhieuInput, Phieu, VaiTro } from '../types'
 import { request } from './auth'
 
-export type ManHinh = 'A' | 'B' | 'C' | 'D' | 'E'
+export type ManHinh = 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
 
 export const MAN_HINH_THEO_VAI_TRO: Record<VaiTro, readonly ManHinh[]> = {
   HOC_SINH: ['A', 'B'],
-  GIAO_VIEN: ['C', 'D', 'E'],
-  QUAN_TRI: ['A', 'B', 'C', 'D', 'E'],
+  GIAO_VIEN: ['C', 'D', 'E', 'F'],
+  QUAN_TRI: ['A', 'B', 'C', 'D', 'E', 'F'],
 }
 export const MAN_HINH_MAC_DINH: Record<VaiTro, ManHinh> = { HOC_SINH: 'A', GIAO_VIEN: 'C', QUAN_TRI: 'C' }
 

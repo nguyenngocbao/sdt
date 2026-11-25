@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Bell, BookOpen, ChevronDown, FileText, ListChecks, LogOut, Menu, PanelLeftClose,
-  PanelLeftOpen, Search, ShieldCheck, Users, X, type LucideIcon,
+  PanelLeftOpen, School, Search, ShieldCheck, Users, X, type LucideIcon,
 } from 'lucide-react'
 import { useApp, MAN_HINH_THEO_VAI_TRO, type ManHinh } from '../../lib/store'
 import { LogoMark } from '../art/Art'
@@ -17,6 +17,7 @@ const NAV: MucNav[] = [
   { nhan: 'Lớp tôi', icon: Users, man: 'C' },
   { nhan: 'Duyệt gợi ý', icon: ShieldCheck, man: 'D' },
   { nhan: 'Chấm', icon: ListChecks, man: 'E' },
+  { nhan: 'Lớp học', icon: School, man: 'F' },
 ]
 
 const TEN_VAI_TRO: Record<VaiTro, string> = { HOC_SINH: 'Học sinh', GIAO_VIEN: 'Giáo viên', QUAN_TRI: 'Quản trị viên' }
@@ -118,7 +119,7 @@ function BangTaiKhoan({ dong }: { dong: () => void }) {
 /* ── Đầu trang ──────────────────────────────────────────────────────────────── */
 function DauTrang({ moThanhBen }: { moThanhBen: () => void }) {
   const { s } = useApp()
-  const { user } = useAuth()
+  const { user, lop_dang_chon, doi_lop } = useAuth()
   const [moDemo, setMoDemo] = useState(false)
   const [moChuong, setMoChuong] = useState(false)
   const refDemo = useRef<HTMLDivElement>(null)
@@ -148,6 +149,15 @@ function DauTrang({ moThanhBen }: { moThanhBen: () => void }) {
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">
+          {!laHS && (user?.cac_lop?.length ?? 0) > 0 && (
+            <label className="flex items-center gap-1.5 text-[12px] font-semibold text-ink-soft">
+              <span className="hidden sm:inline">Lớp</span>
+              <select value={lop_dang_chon} onChange={(e) => doi_lop(e.target.value)} aria-label="Lớp đang làm việc"
+                className="max-w-[160px] rounded-lg border border-line bg-white px-2 py-1.5 text-[13px] font-semibold text-ink outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100">
+                {user!.cac_lop!.map((l) => <option key={l.id} value={l.id}>{l.ten}</option>)}
+              </select>
+            </label>
+          )}
           <div ref={refChuong} className="relative">
             <button onClick={() => setMoChuong((v) => !v)} className="relative rounded-full p-2 text-ink-soft hover:bg-slate-100" aria-label="Thông báo (0)">
               <Bell size={20} />

@@ -15,6 +15,7 @@ const MAN_HINH: Record<ManHinh, ComponentType> = {
   C: tai(() => import('./screens/ManC_LopToi'), 'ManC_LopToi'),
   D: tai(() => import('./screens/ManD_DuyetGoiY'), 'ManD_DuyetGoiY'),
   E: tai(() => import('./screens/ManE_Cham'), 'ManE_Cham'),
+  F: tai(() => import('./screens/ManF_QuanLyLop'), 'ManF_QuanLyLop'),
 }
 
 const DUONG_DAN_DANG_NHAP: Record<VaiTro, string> = {
@@ -31,6 +32,7 @@ function roleFromPath(path: string): VaiTro {
 
 function UngDungDaDangNhap({ user }: { user: NguoiDungDangNhap }) {
   const { s, d } = useApp()
+  const { lop_dang_chon } = useAuth()
   const ManHinhHienTai = MAN_HINH[s.man_hinh]
 
   // Chỉ đồng bộ vai trò; tầng fetch tài nguyên được triển khai ở M1.
@@ -43,7 +45,7 @@ function UngDungDaDangNhap({ user }: { user: NguoiDungDangNhap }) {
   return (
     <Shell>
       <Suspense fallback={<div className="py-24 text-center text-sm text-ink-soft" role="status">Đang tải màn hình…</div>}>
-        <div key={s.man_hinh}><ManHinhHienTai /></div>
+        <div key={`${s.man_hinh}:${lop_dang_chon}`}><ManHinhHienTai /></div>
       </Suspense>
     </Shell>
   )
